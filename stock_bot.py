@@ -1,7 +1,7 @@
 import requests
 
 # ==================== 改成你自己的 ====================
-PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
+PUSH_TOKEN = 8cbcd99528f64aaca47ca088bd23de5c
 # 自选股票 A股/港股/美股
 STOCKS = [
     "SH600887",   # 伊利股份
