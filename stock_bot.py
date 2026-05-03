@@ -1,7 +1,7 @@
 import requests
 
 # ==================== 【只改这里，其他别动】 ====================
-PUSH_TOKEN = "这里填入你的PushPlus Token"
+PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
 
 # 正确写法：
 # A股：直接代码
