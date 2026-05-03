@@ -1,35 +1,43 @@
 import requests
 
-# ==================== 改成你自己的 ====================
-PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
-# 自选股票：
-# A股 直接写代码   例：000001
-# 港股 加 hk       例：hk00700
+# ==================== 【只改这里，其他别动】 ====================
+PUSH_TOKEN = "这里填入你的PushPlus Token"
+
+# 正确写法：
+# A股：直接代码
+# 港股：必须是 00700（不要hk！不要大写！纯数字！）
 STOCKS = [
     "600887",   # 伊利股份
-    "HK09926",   # 康方生物
-    "HK02233",  # 西部水泥
+    "09926",   # 康方生物
+    "02233",  # 西部水泥
 ]
+
 ALERT_RATIO = 2.0
-# ======================================================
+# =================================================================
 
-def get_stock(code):
+def get_a_stock(code):
     try:
-        url = f"https://qt.gtimg.cn/q={code}"
+        url = f"https://hq.cninfo.com.cn/query.php?code={code}"
         res = requests.get(url, timeout=10)
-        s = res.text
+        data = res.json()
+        name = data["stockName"]
+        price = data["lastPrice"]
+        change = data["change"]
+        percent = data["changePercent"]
+        return name, price, float(percent)
+    except:
+        return None
 
-        arr = s.split("~")
-        name = arr[1]
-        price = arr[3]
-        change = arr[8]
-        percent = arr[9]
-
-        return {
-            "name": name,
-            "price": price,
-            "percent": float(percent)
-        }
+def get_hk_stock(code):
+    try:
+        url = f"https://hq.cninfo.com.cn/query.php?code=hk{code}"
+        res = requests.get(url, timeout=10)
+        data = res.json()
+        name = data["stockName"]
+        price = data["lastPrice"]
+        change = data["change"]
+        percent = data["changePercent"]
+        return name, price, float(percent)
     except:
         return None
 
@@ -46,28 +54,33 @@ def send_wechat(title, content):
     except:
         pass
 
-def run():
-    msg = "📈 A股 + 港股 定时行情\n——————————————\n"
-    alert_msg = ""
+def main():
+    msg = "📈 股票行情播报（A股+港股）\n-----------------------\n"
+    alert = ""
 
     for code in STOCKS:
-        info = get_stock(code)
+        info = None
+
+        if len(code) == 5:
+            # 5位 = 港股
+            info = get_hk_stock(code)
+        elif len(code) == 6:
+            # 6位 = A股
+            info = get_a_stock(code)
+
         if not info:
-            msg += f"{code} → 获取失败\n"
+            msg += f"❌ {code} 获取失败\n\n"
             continue
 
-        name = info["name"]
-        price = info["price"]
-        pct = info["percent"]
-
-        msg += f"{name}\n现价：{price} 元\n涨跌幅：{pct:.2f}%\n\n"
+        name, price, pct = info
+        msg += f"【{name}】\n现价：{price} 元\n涨跌幅：{pct:.2f}%\n\n"
 
         if abs(pct) >= ALERT_RATIO:
-            alert_msg += f"⚠️ {name} 波动超 {ALERT_RATIO}%！\n"
+            alert += f"⚠️ {name} 波动超 {ALERT_RATIO}%\n"
 
-    send_wechat("股票行情播报", msg)
-    if alert_msg:
-        send_wechat("异动提醒", alert_msg)
+    send_wechat("股票定时推送", msg)
+    if alert:
+        send_wechat("异动提醒", alert)
 
 if __name__ == "__main__":
-    run()
+    main()
