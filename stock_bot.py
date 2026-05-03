@@ -3,29 +3,25 @@ import requests
 # ==================== 【只改这里，其他别动】 ====================
 PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
 
-# 正确写法：
-# A股：直接代码
-# 港股：必须是 00700（不要hk！不要大写！纯数字！）
 STOCKS = [
-    "600887",   # 伊利股份
-    "09926",    # 康方生物
-    "02233",    # 西部水泥
+    "SH600887",   # 伊利股份（A股）
+    "09926",    # 康方生物（港股）
+    "02233",    # 西部水泥（港股）
 ]
 
 ALERT_RATIO = 2.0
 # =================================================================
 
 def get_stock(code):
-    """
-    统一接口：自动识别 A股/港股，稳定可用
-    """
     try:
-        # 自动判断市场
         if len(code) == 6:
-            # A股：sh + 代码 / sz + 代码 都支持
-            url = f"https://qt.gtimg.cn/q=s_{code}"
+            # A股：s_sh / s_sz
+            if code.startswith("6"):
+                url = f"https://qt.gtimg.cn/q=s_sh{code}"
+            else:
+                url = f"https://qt.gtimg.cn/q=s_sz{code}"
         elif len(code) == 5:
-            # 港股：hk + 代码
+            # 港股：hk
             url = f"https://qt.gtimg.cn/q=hk{code}"
         else:
             return None
@@ -33,17 +29,28 @@ def get_stock(code):
         res = requests.get(url, timeout=8)
         text = res.text.strip()
 
-        # 解析数据
-        parts = text.split("~")
-        if len(parts) < 30:
+        # 去掉头部 v_s_sh600887=" 和尾部 "
+        if "=" not in text or "\"" not in text:
+            return None
+        data = text.split("=\"")[-1].rstrip("\"")
+        parts = data.split("~")
+        if len(parts) < 20:
             return None
 
-        name = parts[1]
-        price = parts[3]
-        change = parts[8]
-        percent = parts[9]
+        # 字段映射（A股/港股分开）
+        if len(code) == 6:
+            # A股：name=1, price=3, change=4, percent=5
+            name = parts[1]
+            price = parts[3]
+            change = parts[4]
+            percent = parts[5]
+        else:
+            # 港股：name=1, price=3, change=10, percent=9
+            name = parts[1]
+            price = parts[3]
+            change = parts[10]
+            percent = parts[9]
 
-        # 处理异常价格
         if float(price) <= 0:
             return None
 
@@ -77,7 +84,7 @@ def main():
             continue
 
         name, price, pct = info
-        msg += f"【{name}】\n现价：{price} 元\n涨跌幅：{pct:.2f}%\n\n"
+        msg += f"【{name}】\n现价：{price}\n涨跌幅：{pct:.2f}%\n\n"
 
         if abs(pct) >= ALERT_RATIO:
             alert += f"⚠️ {name} 波动超 {ALERT_RATIO}%\n"
