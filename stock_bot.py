@@ -1,6 +1,5 @@
 import requests
-from datetime import datetime
-import pytz
+from datetime import datetime, timedelta
 
 # ==================== 【只改这里，其他别动】 ====================
 PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
@@ -15,9 +14,10 @@ ALERT_RATIO = 2.0  # 异动阈值 ±2%
 # =================================================================
 
 def get_beijing_time():
-    """获取北京时间"""
-    tz = pytz.timezone('Asia/Shanghai')
-    return datetime.now(tz)
+    """获取北京时间（原生实现，无需第三方库）"""
+    utc_now = datetime.utcnow()
+    beijing_now = utc_now + timedelta(hours=8)
+    return beijing_now
 
 def get_stock(code):
     """获取股票数据（已100%精准）"""
@@ -113,9 +113,7 @@ def main():
     # --------------------------
     # 任务2：异动提醒（9:30~15:00 每30分钟检查）
     # --------------------------
-    # 交易时间：9:30 - 15:00
     if (hour == 9 and minute >= 30) or (10 <= hour <= 14) or (hour == 15 and minute <= 0):
-        # 每30分钟执行一次 (0分、30分)
         if minute in [0, 30]:
             send_price_alert()
         else:
