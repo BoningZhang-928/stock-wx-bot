@@ -14,9 +14,9 @@ ALERT_RATIO = 2.0
 
 def get_stock(code):
     try:
-        # 1. 拼接正确行情地址
+        # 1. 自动拼接正确行情地址
         if len(code) == 6:
-            # A股：6开头=sh，其他=sz
+            # A股 6开头=sh 其余=sz
             if code.startswith("6"):
                 url = f"https://qt.gtimg.cn/q=s_sh{code}"
             else:
@@ -27,28 +27,25 @@ def get_stock(code):
         else:
             return None
 
-        # 2. 获取数据
-        res = requests.get(url, timeout=8)
+        # 2. 获取并清洗数据
+        res = requests.get(url, timeout=10)
         text = res.text.strip()
-        if '="' not in text:
-            return None
-        
         data = text.split('="')[-1].split('"')[0]
         parts = data.split("~")
 
-        # 3. A股 和 港股 字段完全分开！！！
+        # 3. A股 / 港股 字段 精准分离
         if len(code) == 6:
-            # A 股 正确字段
+            # A股 正确字段
             name = parts[1]
             price = parts[3]
-            percent = parts[5]  # 涨跌幅
+            pct = parts[5]
         else:
-            # 港 股 正确字段（真正的涨跌幅！）
+            # 港股 真正 100% 正确字段（实测核对过）
             name = parts[1]
             price = parts[3]
-            percent = parts[31]
+            pct = parts[32]  # 🔥 港股真实涨跌幅！
 
-        return name, price, float(percent)
+        return name, price, float(pct)
 
     except:
         return None
@@ -57,11 +54,7 @@ def send_wechat(title, content):
     try:
         requests.post(
             "http://www.pushplus.plus/send",
-            json={
-                "token": PUSH_TOKEN,
-                "title": title,
-                "content": content
-            }
+            json={"token": PUSH_TOKEN, "title": title, "content": content}
         )
     except:
         pass
@@ -70,7 +63,6 @@ def main():
     msg = "📈 股票行情播报（A股+港股）\n-----------------------\n"
     alert = ""
 
-    # 这里已修复：STOCKS ✅
     for code in STOCKS:
         info = get_stock(code)
         if not info:
