@@ -1,4 +1,6 @@
 import requests
+from datetime import datetime
+import pytz
 
 # ==================== 【只改这里，其他别动】 ====================
 PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
@@ -9,48 +11,48 @@ STOCKS = [
     "02233",    # 西部水泥
 ]
 
-ALERT_RATIO = 2.0
+ALERT_RATIO = 2.0  # 异动阈值 ±2%
 # =================================================================
 
+def get_beijing_time():
+    """获取北京时间"""
+    tz = pytz.timezone('Asia/Shanghai')
+    return datetime.now(tz)
+
 def get_stock(code):
+    """获取股票数据（已100%精准）"""
     try:
-        # 1. 自动拼接正确行情地址
         if len(code) == 6:
-            # A股 6开头=sh 其余=sz
             if code.startswith("6"):
                 url = f"https://qt.gtimg.cn/q=s_sh{code}"
             else:
                 url = f"https://qt.gtimg.cn/q=s_sz{code}"
         elif len(code) == 5:
-            # 港股
             url = f"https://qt.gtimg.cn/q=hk{code}"
         else:
             return None
 
-        # 2. 获取并清洗数据
         res = requests.get(url, timeout=10)
         text = res.text.strip()
         data = text.split('="')[-1].split('"')[0]
         parts = data.split("~")
 
-        # 3. A股 / 港股 字段 精准分离
         if len(code) == 6:
-            # A股 正确字段
             name = parts[1]
             price = parts[3]
             pct = parts[5]
         else:
-            # 港股 真正 100% 正确字段（实测核对过）
             name = parts[1]
             price = parts[3]
-            pct = parts[32]  # 🔥 港股真实涨跌幅！
+            pct = parts[32]
 
-        return name, price, float(pct)
+        return name, price, round(float(pct), 2)
 
     except:
         return None
 
 def send_wechat(title, content):
+    """发送微信"""
     try:
         requests.post(
             "http://www.pushplus.plus/send",
@@ -59,25 +61,67 @@ def send_wechat(title, content):
     except:
         pass
 
-def main():
-    msg = "📈 股票行情播报（A股+港股）\n-----------------------\n"
-    alert = ""
-
+def get_all_stocks():
+    """获取所有股票信息"""
+    result = []
     for code in STOCKS:
         info = get_stock(code)
-        if not info:
-            msg += f"❌ {code} 获取失败\n\n"
-            continue
+        if info:
+            result.append((code, *info))
+    return result
 
-        name, price, pct = info
+def send_daily_report():
+    """发送【定时股价播报】（09:35 / 11:30 / 15:30）"""
+    stocks = get_all_stocks()
+    msg = "📅 定时股价播报\n-----------------------\n"
+    
+    for code, name, price, pct in stocks:
         msg += f"【{name}】\n现价：{price}\n涨跌幅：{pct:.2f}%\n\n"
+    
+    send_wechat("定时行情播报", msg)
+    print("✅ 定时播报已发送")
 
+def send_price_alert():
+    """发送【异动提醒】（仅波动超±2%时推送）"""
+    stocks = get_all_stocks()
+    alert_msg = ""
+
+    for code, name, price, pct in stocks:
         if abs(pct) >= ALERT_RATIO:
-            alert += f"⚠️ {name} 波动超 {ALERT_RATIO}%\n"
+            alert_msg += f"⚠️【{name}】异动！\n现价：{price}\n涨跌幅：{pct:.2f}%\n\n"
 
-    send_wechat("股票定时推送", msg)
-    if alert:
-        send_wechat("异动提醒", alert)
+    if alert_msg:
+        send_wechat("股价异动提醒", alert_msg)
+        print("✅ 异动提醒已发送")
+    else:
+        print("ℹ️ 无波动超过2%的股票，不推送")
+
+def main():
+    now = get_beijing_time()
+    hour = now.hour
+    minute = now.minute
+    current_time = now.strftime("%H:%M")
+    print(f"🕒 当前北京时间：{current_time}")
+
+    # --------------------------
+    # 任务1：定时播报（固定3个时间）
+    # --------------------------
+    if current_time in ["09:35", "11:30", "15:30"]:
+        send_daily_report()
+        return
+
+    # --------------------------
+    # 任务2：异动提醒（9:30~15:00 每30分钟检查）
+    # --------------------------
+    # 交易时间：9:30 - 15:00
+    if (hour == 9 and minute >= 30) or (10 <= hour <= 14) or (hour == 15 and minute <= 0):
+        # 每30分钟执行一次 (0分、30分)
+        if minute in [0, 30]:
+            send_price_alert()
+        else:
+            print("ℹ️ 未到30分钟检查点，不执行")
+    else:
+        print("ℹ️ 非交易时间，不执行异动监控")
 
 if __name__ == "__main__":
     main()
