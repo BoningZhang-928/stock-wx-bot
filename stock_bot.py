@@ -8,37 +8,48 @@ PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
 # 港股：必须是 00700（不要hk！不要大写！纯数字！）
 STOCKS = [
     "600887",   # 伊利股份
-    "09926",   # 康方生物
-    "02233",  # 西部水泥
+    "09926",    # 康方生物
+    "02233",    # 西部水泥
 ]
 
 ALERT_RATIO = 2.0
 # =================================================================
 
-def get_a_stock(code):
+def get_stock(code):
+    """
+    统一接口：自动识别 A股/港股，稳定可用
+    """
     try:
-        url = f"https://hq.cninfo.com.cn/query.php?code={code}"
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        name = data["stockName"]
-        price = data["lastPrice"]
-        change = data["change"]
-        percent = data["changePercent"]
-        return name, price, float(percent)
-    except:
-        return None
+        # 自动判断市场
+        if len(code) == 6:
+            # A股：sh + 代码 / sz + 代码 都支持
+            url = f"https://qt.gtimg.cn/q=s_{code}"
+        elif len(code) == 5:
+            # 港股：hk + 代码
+            url = f"https://qt.gtimg.cn/q=hk{code}"
+        else:
+            return None
 
-def get_hk_stock(code):
-    try:
-        url = f"https://hq.cninfo.com.cn/query.php?code=hk{code}"
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        name = data["stockName"]
-        price = data["lastPrice"]
-        change = data["change"]
-        percent = data["changePercent"]
+        res = requests.get(url, timeout=8)
+        text = res.text.strip()
+
+        # 解析数据
+        parts = text.split("~")
+        if len(parts) < 30:
+            return None
+
+        name = parts[1]
+        price = parts[3]
+        change = parts[8]
+        percent = parts[9]
+
+        # 处理异常价格
+        if float(price) <= 0:
+            return None
+
         return name, price, float(percent)
-    except:
+
+    except Exception as e:
         return None
 
 def send_wechat(title, content):
@@ -59,14 +70,7 @@ def main():
     alert = ""
 
     for code in STOCKS:
-        info = None
-
-        if len(code) == 5:
-            # 5位 = 港股
-            info = get_hk_stock(code)
-        elif len(code) == 6:
-            # 6位 = A股
-            info = get_a_stock(code)
+        info = get_stock(code)
 
         if not info:
             msg += f"❌ {code} 获取失败\n\n"
