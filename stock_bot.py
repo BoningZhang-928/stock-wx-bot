@@ -4,9 +4,9 @@ import requests
 PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
 
 STOCKS = [
-    "sh600887",   # 伊利股份
-    "hk09926",    # 康方生物
-    "hk02233",    # 西部水泥
+    "600887",   # 伊利股份
+    "09926",    # 康方生物
+    "02233",    # 西部水泥
 ]
 
 ALERT_RATIO = 2.0
@@ -43,10 +43,10 @@ def get_stock(code):
             price = parts[3]
             percent = parts[5]  # 涨跌幅
         else:
-            # 港 股 正确字段
+            # 港 股 正确字段（真正的涨跌幅！）
             name = parts[1]
             price = parts[3]
-            percent = parts[31] # 港股真正涨跌幅（终于对了！）
+            percent = parts[31]
 
         return name, price, float(percent)
 
@@ -70,6 +70,7 @@ def main():
     msg = "📈 股票行情播报（A股+港股）\n-----------------------\n"
     alert = ""
 
+    # 这里已修复：STOCKS ✅
     for code in STOCKS:
         info = get_stock(code)
         if not info:
