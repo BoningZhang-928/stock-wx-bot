@@ -70,7 +70,7 @@ def main():
     msg = "📈 股票行情播报（A股+港股）\n-----------------------\n"
     alert = ""
 
-    for code in STOCS:
+    for code in STOCKS:
         info = get_stock(code)
         if not info:
             msg += f"❌ {code} 获取失败\n\n"
