@@ -2,62 +2,73 @@ import requests
 
 # ==================== 改成你自己的 ====================
 PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
-# 自选股票 A股/港股/美股
+# 自选股票（只支持 A股 代码）
 STOCKS = [
-    "SH600887",   # 伊利股份
-    "HK09926",   # 康方生物
-    "HK02233",  # 西部水泥
+    "000001",
+    "000858",
+    "600519",
+    "000063"
 ]
-# 异动提醒阈值
 ALERT_RATIO = 2.0
 # ======================================================
 
-def get_stock_info(code):
+def get_stock(code):
     try:
-        url = f"https://api.money.126.net/data/feed/{code}"
-        resp = requests.get(url, timeout=10)
-        data = resp.json()
-        item = data[code]
+        # 这个接口 GitHub 绝对能用！
+        url = f"https://qt.gtimg.cn/q=s_{code}"
+        res = requests.get(url, timeout=10)
+        s = res.text
+
+        # 解析数据
+        arr = s.split("~")
+        name = arr[1]
+        price = arr[3]
+        change = arr[8]
+        percent = arr[9]
+
         return {
-            "name": item["name"],
-            "price": item["price"],
-            "percent": float(item["percent"])
+            "name": name,
+            "price": price,
+            "percent": float(percent)
         }
-    except Exception as e:
+    except:
         return None
 
 def send_wechat(title, content):
-    requests.post(
-        "http://www.pushplus.plus/send",
-        json={
-            "token": PUSH_TOKEN,
-            "title": title,
-            "content": content
-        }
-    )
+    try:
+        requests.post(
+            "http://www.pushplus.plus/send",
+            json={
+                "token": PUSH_TOKEN,
+                "title": title,
+                "content": content
+            }
+        )
+    except:
+        pass
 
 def run():
-    msg = "📈 每日股票行情简报\n——————————\n"
+    msg = "📈 A股定时行情推送\n——————————————\n"
     alert_msg = ""
 
     for code in STOCKS:
-        info = get_stock_info(code)
+        info = get_stock(code)
         if not info:
-            msg += f"{code} 获取失败\n"
+            msg += f"{code} → 获取失败\n"
             continue
+
         name = info["name"]
         price = info["price"]
         pct = info["percent"]
-        msg += f"{name}｜现价：{price}｜涨跌幅：{pct:.2f}%\n"
+
+        msg += f"{name}\n现价：{price} 元\n涨跌幅：{pct:.2f}%\n\n"
 
         if abs(pct) >= ALERT_RATIO:
-            alert_msg += f"⚠️ {name} 异动 {pct:.2f}%\n"
+            alert_msg += f"⚠️ {name} 波动超 {ALERT_RATIO}%！\n"
 
-    # 推送日常行情
-    send_wechat("股票定时播报", msg)
-    # 有异动单独推送
+    send_wechat("股票播报", msg)
     if alert_msg:
-        send_wechat("⚠️ 股票异动提醒", alert_msg)
+        send_wechat("异动提醒", alert_msg)
 
 if __name__ == "__main__":
     run()
