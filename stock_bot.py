@@ -4,9 +4,9 @@ import requests
 PUSH_TOKEN = "8cbcd99528f64aaca47ca088bd23de5c"
 
 STOCKS = [
-    "SH600887",   # 伊利股份（A股）
-    "09926",    # 康方生物（港股）
-    "02233",    # 西部水泥（港股）
+    "sh600887",   # 伊利股份
+    "hk09926",    # 康方生物
+    "hk02233",    # 西部水泥
 ]
 
 ALERT_RATIO = 2.0
@@ -14,49 +14,43 @@ ALERT_RATIO = 2.0
 
 def get_stock(code):
     try:
+        # 1. 拼接正确行情地址
         if len(code) == 6:
-            # A股：s_sh / s_sz
+            # A股：6开头=sh，其他=sz
             if code.startswith("6"):
                 url = f"https://qt.gtimg.cn/q=s_sh{code}"
             else:
                 url = f"https://qt.gtimg.cn/q=s_sz{code}"
         elif len(code) == 5:
-            # 港股：hk
+            # 港股
             url = f"https://qt.gtimg.cn/q=hk{code}"
         else:
             return None
 
+        # 2. 获取数据
         res = requests.get(url, timeout=8)
         text = res.text.strip()
-
-        # 去掉头部 v_s_sh600887=" 和尾部 "
-        if "=" not in text or "\"" not in text:
+        if '="' not in text:
             return None
-        data = text.split("=\"")[-1].rstrip("\"")
+        
+        data = text.split('="')[-1].split('"')[0]
         parts = data.split("~")
-        if len(parts) < 20:
-            return None
 
-        # 字段映射（A股/港股分开）
+        # 3. A股 和 港股 字段完全分开！！！
         if len(code) == 6:
-            # A股：name=1, price=3, change=4, percent=5
+            # A 股 正确字段
             name = parts[1]
             price = parts[3]
-            change = parts[4]
-            percent = parts[5]
+            percent = parts[5]  # 涨跌幅
         else:
-            # 港股：name=1, price=3, change=10, percent=9
+            # 港 股 正确字段
             name = parts[1]
             price = parts[3]
-            change = parts[10]
-            percent = parts[9]
-
-        if float(price) <= 0:
-            return None
+            percent = parts[31] # 港股真正涨跌幅（终于对了！）
 
         return name, price, float(percent)
 
-    except Exception as e:
+    except:
         return None
 
 def send_wechat(title, content):
@@ -76,9 +70,8 @@ def main():
     msg = "📈 股票行情播报（A股+港股）\n-----------------------\n"
     alert = ""
 
-    for code in STOCKS:
+    for code in STOCS:
         info = get_stock(code)
-
         if not info:
             msg += f"❌ {code} 获取失败\n\n"
             continue
